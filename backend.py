@@ -9,13 +9,21 @@ from flask_cors import CORS
 import requests
 import numpy as np
 from datetime import datetime, date
+from pathlib import Path
 import io
 import csv
 
 app = Flask(__name__)
 CORS(app)  # Allow requests from file:// origin
 
-API_KEY = "XW4LEB4MUOHZRXTT"
+def _load_api_key(filename="alphavantage_api_key.txt"):
+    for directory in [Path(__file__).parent, Path(__file__).parent.parent]:
+        path = directory / filename
+        if path.exists():
+            return path.read_text().strip()
+    raise FileNotFoundError(f"'{filename}' not found in script directory or parent directory.")
+
+API_KEY = _load_api_key()
 BASE = "https://www.alphavantage.co/query"
 
 
