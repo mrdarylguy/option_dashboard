@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Covered Call Dashboard</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --green:    #3fb950;
+    --red:      #f85149;
+    --yellow:   #d29922;
+    --blue:     #58a6ff;
+    --orange:   #e3b341;
+    --purple:   #bc8cff;
+    --accent:   #1f6feb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+
+  /* ── Header ── */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; font-weight: 600; color: var(--blue); white-space: nowrap; }
+  .search-row { display: flex; gap: 8px; flex: 1; max-width: 420px; }
+  .search-row input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 8px 12px; font-size: 14px; text-transform: uppercase;
+    outline: none; transition: border-color .2s;
+  }
+  .search-row input:focus { border-color: var(--accent); }
+  .search-row input::placeholder { text-transform: none; color: var(--muted); }
+  .btn-load {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 8px 20px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+  }
+  .btn-load:hover { background: #388bfd; }
+  .btn-load:disabled { background: var(--border); cursor: not-allowed; }
+
+  /* ── Backend selector ── */
+  .backend-selector { display: flex; gap: 4px; }
+  .btn-backend {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500;
+    cursor: pointer; white-space: nowrap; transition: all .15s;
+  }
+  .btn-backend:hover { border-color: var(--blue); color: var(--blue); }
+  .btn-backend.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  #status { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+  /* ── Layout ── */
+  #dashboard { display: none; padding: 20px 24px; }
+  .company-bar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .company-bar .name { font-size: 22px; font-weight: 700; }
+  .company-bar .symbol { font-size: 16px; color: var(--muted); }
+  .company-bar .price { font-size: 26px; font-weight: 700; }
+  .company-bar .change { font-size: 16px; font-weight: 600; }
+  .up   { color: var(--green); }
+  .down { color: var(--red); }
+
+  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 20px; color: var(--muted); font-size: 13px; }
+  .meta-row span b { color: var(--text); }
+
+  /* ── Panels ── */
+  .panels { display: grid; grid-template-columns: 280px 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  }
+  .card h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 14px; }
+
+  /* Vol panel */
+  .vol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vol-item { display: flex; flex-direction: column; gap: 2px; }
+  .vol-item .label { font-size: 11px; color: var(--muted); }
+  .vol-item .value { font-size: 20px; font-weight: 700; }
+  .vol-item .sub   { font-size: 11px; color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    margin-top: 6px;
+  }
+  .badge-green  { background: #1a3a1a; color: var(--green); }
+  .badge-red    { background: #3a1a1a; color: var(--red); }
+  .badge-yellow { background: #3a2e00; color: var(--yellow); }
+  .badge-blue   { background: #0d2044; color: var(--blue); }
+
+  /* Events panel */
+  .event-list { display: flex; flex-direction: column; gap: 10px; }
+  .event-row { display: flex; justify-content: space-between; align-items: center; }
+  .event-row .ev-label { font-size: 12px; color: var(--muted); }
+  .event-row .ev-val   { font-size: 13px; font-weight: 600; }
+  .event-warn { color: var(--yellow); }
+  .event-ok   { color: var(--muted); }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 8px 10px; border-bottom: 1px solid #1d2229; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1c2128; }
+  .num { text-align: right; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .highlight-yield { color: var(--green); font-weight: 600; }
+  .delta-good { color: var(--purple); font-weight: 600; }
+  .warn-row td { background: #2a1f00 !important; }
+
+  /* Section headers */
+  .section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 20px 0 10px;
+  }
+
+  /* Expander */
+  details summary { cursor: pointer; color: var(--blue); font-size: 13px; margin: 16px 0 10px; user-select: none; }
+  details summary:hover { color: #79c0ff; }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #placeholder { text-align: center; padding: 80px 24px; color: var(--muted); }
+  #placeholder .big { font-size: 40px; margin-bottom: 12px; }
+  #placeholder p { font-size: 15px; }
+  #error-msg { color: var(--red); padding: 20px 24px; font-size: 14px; display: none; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#9646; Covered Call Dashboard</h1>
+  <div class="search-row">
+    <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" maxlength="10" />
+    <button class="btn-load" id="load-btn" onclick="loadDashboard()">Load</button>
+  </div>
+  <div class="backend-selector">
+    <button class="btn-backend" id="btn-av-live"    onclick="setBackend('av-live')"    title="Alpha Vantage — realtime (market hours)">AV Live</button>
+    <button class="btn-backend" id="btn-av-prevday" onclick="setBackend('av-prevday')" title="Alpha Vantage — previous trading session">AV Prev-Day</button>
+    <button class="btn-backend active" id="btn-yfinance"  onclick="setBackend('yfinance')"  title="Yahoo Finance — Black-Scholes Greeks">yFinance</button>
+  </div>
+  <span id="status"></span>
+</header>
+
+<div id="error-msg"></div>
+
+<div id="placeholder">
+  <div class="big">📈</div>
+  <p>Enter a ticker symbol and click <strong>Load</strong> to populate the dashboard.</p>
+</div>
+
+<div id="dashboard">
+
+  <!-- Company bar -->
+  <div class="company-bar" id="company-bar"></div>
+  <div class="meta-row" id="meta-row"></div>
+
+  <!-- Side-by-side panels -->
+  <div class="panels">
+
+    <!-- Volatility card -->
+    <div>
+      <div class="card" id="vol-card">
+        <h2>Volatility</h2>
+        <div class="vol-grid" id="vol-grid"></div>
+      </div>
+      <br>
+      <!-- Events card -->
+      <div class="card" id="events-card">
+        <h2>Calendar Events</h2>
+        <div class="event-list" id="event-list"></div>
+      </div>
+    </div>
+
+    <!-- Recommended contracts card -->
+    <div class="card">
+      <h2>Recommended Contracts — OTM Calls &nbsp;|&nbsp; 30–60 DTE &nbsp;|&nbsp; &Delta; &asymp; 0.25</h2>
+      <div class="table-wrap">
+        <table id="rec-table">
+          <thead>
+            <tr>
+              <th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
+              <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
+              <th class="num">Mid</th><th class="num">Delta</th><th class="num">Theta/day</th>
+              <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
+              <th class="num">Ann. Yield</th>
+            </tr>
+          </thead>
+          <tbody id="rec-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end panels -->
+
+  <!-- Full chain -->
+  <details>
+    <summary>&#9660; Full OTM Call Chain (30–60 DTE)</summary>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="chain-table">
+          <thead>
+            <tr>
+              <th>Contract</th><th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
+              <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
+              <th class="num">Mid</th><th class="num">Delta</th><th class="num">Gamma</th>
+              <th class="num">Theta</th><th class="num">Vega</th>
+              <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
+              <th class="num">Ann. Yield</th>
+            </tr>
+          </thead>
+          <tbody id="chain-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <p style="color:var(--muted);font-size:11px;margin-top:16px;" id="footer"></p>
+
+</div><!-- end dashboard -->
+
+<script>
+const BACKENDS = {
+  'av-live':    { url: "http://localhost:5050/api/dashboard", label: "AV Live" },
+  'av-prevday': { url: "http://localhost:5051/api/dashboard", label: "AV Prev-Day" },
+  'yfinance':   { url: "http://localhost:5052/api/dashboard", label: "yFinance" },
+};
+let activeBackend = 'yfinance';
+
+function setBackend(key) {
+  activeBackend = key;
+  document.querySelectorAll('.btn-backend').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + key).classList.add('active');
+}
+
+document.getElementById("ticker-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") loadDashboard();
+});
+
+function fmt(n, digits=2, prefix="") {
+  if (n == null || n === "—") return "—";
+  return prefix + Number(n).toFixed(digits);
+}
+function fmtPct(n, digits=1) { return n == null ? "—" : Number(n).toFixed(digits) + "%"; }
+function fmtK(n) {
+  if (!n) return "—";
+  return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : n;
+}
+
+async function loadDashboard() {
+  const raw = document.getElementById("ticker-input").value.trim().toUpperCase();
+  if (!raw) return;
+
+  const btn = document.getElementById("load-btn");
+  const statusEl = document.getElementById("status");
+  const errEl = document.getElementById("error-msg");
+  const dash = document.getElementById("dashboard");
+  const placeholder = document.getElementById("placeholder");
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Loading…';
+  statusEl.textContent = "";
+  errEl.style.display = "none";
+  dash.style.display = "none";
+  placeholder.style.display = "none";
+
+  try {
+    const backend = BACKENDS[activeBackend];
+    const res = await fetch(`${backend.url}/${raw}`);
+    const d = await res.json();
+
+    if (!res.ok || d.error) {
+      throw new Error(d.error || `HTTP ${res.status}`);
+    }
+
+    renderDashboard(d);
+    dash.style.display = "block";
+    const dataDate = d.data_date || d.price_date || "";
+    const modeLabel = BACKENDS[activeBackend].label + (dataDate ? ` (${dataDate})` : "");
+    statusEl.textContent = `${modeLabel} · ${d.timestamp}`;
+
+  } catch(err) {
+    errEl.textContent = `Error: ${err.message}`;
+    errEl.style.display = "block";
+    placeholder.style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Load";
+  }
+}
+
+function renderDashboard(d) {
+  const chg = parseFloat(d.change);
+  const cls = chg >= 0 ? "up" : "down";
+  const arrow = chg >= 0 ? "▲" : "▼";
+
+  // Company bar
+  document.getElementById("company-bar").innerHTML = `
+    <span class="name">${d.name}</span>
+    <span class="symbol">${d.symbol}</span>
+    <span class="price">$${Number(d.price).toFixed(2)}</span>
+    <span class="change ${cls}">${arrow} ${Math.abs(chg).toFixed(2)} (${parseFloat(d.change_pct).toFixed(2)}%)</span>
+  `;
+
+  // Meta row
+  const w52pct = d.week52_high && d.week52_low
+    ? ` | <b>52W</b> $${d.week52_low} – $${d.week52_high}` : "";
+  document.getElementById("meta-row").innerHTML = `
+    <span><b>Sector:</b> ${d.sector}</span>
+    <span><b>Industry:</b> ${d.industry}</span>
+    <span><b>Mkt Cap:</b> ${d.market_cap}</span>
+    <span><b>Beta:</b> ${d.beta}</span>
+    <span><b>Prev Close:</b> $${d.prev_close}</span>
+    <span><b>Volume:</b> ${fmtK(d.volume)}</span>
+    ${d.week52_high ? `<span><b>52W Range:</b> $${d.week52_low} – $${d.week52_high}</span>` : ""}
+  `;
+
+  // Volatility
+  const v = d.volatility;
+  let richBadge = "";
+  if (v.iv_hv_ratio != null) {
+    if (v.iv_hv_ratio > 1.15)      richBadge = `<span class="badge badge-green">Premium Rich ✓</span>`;
+    else if (v.iv_hv_ratio < 0.85) richBadge = `<span class="badge badge-red">Premium Cheap</span>`;
+    else                           richBadge = `<span class="badge badge-yellow">Neutral</span>`;
+  }
+  document.getElementById("vol-grid").innerHTML = `
+    <div class="vol-item">
+      <span class="label">Current IV (30–60 DTE)</span>
+      <span class="value" style="color:var(--purple)">${v.current_iv != null ? v.current_iv+"%" : "—"}</span>
+      ${richBadge}
+    </div>
+    <div class="vol-item">
+      <span class="label">IV / HV30 Ratio</span>
+      <span class="value">${v.iv_hv_ratio ?? "—"}</span>
+      <span class="sub">Ratio &gt;1 = expensive premium</span>
+    </div>
+    <div class="vol-item">
+      <span class="label">HV30 (Realized)</span>
+      <span class="value" style="color:var(--blue)">${v.hv30 != null ? v.hv30+"%" : "—"}</span>
+      <span class="sub">30-day historical vol</span>
+    </div>
+    <div class="vol-item">
+      <span class="label">HV10 (Short-term)</span>
+      <span class="value" style="color:var(--blue)">${v.hv10 != null ? v.hv10+"%" : "—"}</span>
+      <span class="sub">10-day historical vol</span>
+    </div>
+  `;
+
+  // Events
+  const ev = d.events;
+  function eventRow(label, dateStr, dte, inWindow, extra="") {
+    const warnCls = inWindow ? "event-warn" : "event-ok";
+    const warnTag = inWindow ? ` <span class="badge badge-yellow">⚠ In window</span>` : "";
+    const dteStr  = dte != null ? ` (${dte}d)` : "";
+    return `
+      <div class="event-row">
+        <span class="ev-label">${label}</span>
+        <span class="ev-val ${warnCls}">${dateStr}${dteStr}${warnTag}${extra}</span>
+      </div>`;
+  }
+  document.getElementById("event-list").innerHTML =
+    eventRow("Next Earnings", ev.earnings_date, ev.earnings_dte, ev.earnings_in_window) +
+    eventRow("Ex-Dividend Date", ev.ex_div_date, ev.exdiv_dte, ev.exdiv_in_window) +
+    `<div class="event-row"><span class="ev-label">Dividend / Yield</span>
+       <span class="ev-val">$${ev.div_amount} &nbsp;|&nbsp; ${ev.div_yield}</span></div>`;
+
+  // Recommended table
+  const recBody = document.getElementById("rec-body");
+  recBody.innerHTML = "";
+  if (!d.recommended.length) {
+    recBody.innerHTML = `<tr><td colspan="13" style="color:var(--muted);padding:20px">No qualifying contracts found.</td></tr>`;
+  } else {
+    d.recommended.forEach(c => {
+      const yieldCls = c.ann_yield >= 15 ? "highlight-yield" : "";
+      const deltaCls = Math.abs(c.delta - 0.25) < 0.05 ? "delta-good" : "";
+      const inEarnings = d.events.earnings_in_window && d.events.earnings_dte <= c.dte;
+      const rowCls = inEarnings ? "warn-row" : "";
+      recBody.innerHTML += `
+        <tr class="${rowCls}">
+          <td>${c.expiry}${inEarnings ? " ⚠" : ""}</td>
+          <td class="num">${c.dte}</td>
+          <td class="num">$${c.strike.toFixed(2)}</td>
+          <td class="num">+${c.pct_otm.toFixed(2)}%</td>
+          <td class="num">$${c.bid.toFixed(2)}</td>
+          <td class="num">$${c.ask.toFixed(2)}</td>
+          <td class="num">$${c.mid.toFixed(2)}</td>
+          <td class="num ${deltaCls}">${c.delta.toFixed(3)}</td>
+          <td class="num">${c.theta.toFixed(3)}</td>
+          <td class="num">${c.iv.toFixed(1)}%</td>
+          <td class="num">${fmtK(c.oi)}</td>
+          <td class="num">${fmtK(c.volume)}</td>
+          <td class="num ${yieldCls}">${c.ann_yield.toFixed(2)}%</td>
+        </tr>`;
+    });
+  }
+
+  // Full chain
+  const chainBody = document.getElementById("chain-body");
+  chainBody.innerHTML = "";
+  d.all_calls.forEach(c => {
+    const yieldCls = c.ann_yield >= 15 ? "highlight-yield" : "";
+    chainBody.innerHTML += `
+      <tr>
+        <td style="color:var(--muted);font-size:11px">${c.contract}</td>
+        <td>${c.expiry}</td>
+        <td class="num">${c.dte}</td>
+        <td class="num">$${c.strike.toFixed(2)}</td>
+        <td class="num">+${c.pct_otm.toFixed(2)}%</td>
+        <td class="num">$${c.bid.toFixed(2)}</td>
+        <td class="num">$${c.ask.toFixed(2)}</td>
+        <td class="num">$${c.mid.toFixed(2)}</td>
+        <td class="num">${c.delta.toFixed(3)}</td>
+        <td class="num">${c.gamma.toFixed(4)}</td>
+        <td class="num">${c.theta.toFixed(3)}</td>
+        <td class="num">${c.vega.toFixed(3)}</td>
+        <td class="num">${c.iv.toFixed(1)}%</td>
+        <td class="num">${fmtK(c.oi)}</td>
+        <td class="num">${fmtK(c.volume)}</td>
+        <td class="num ${yieldCls}">${c.ann_yield.toFixed(2)}%</td>
+      </tr>`;
+  });
+
+  document.getElementById("footer").textContent = activeBackend === 'yfinance'
+    ? ""
+    : `Data via Alpha Vantage · 15-min delayed · ${d.timestamp}`;
+}
+</script>
+</body>
+</html>
