@@ -648,26 +648,52 @@ function renderPnL(recommended, currentPrice, entryPrice) {
   const strikes    = recommended.map(c => c.strike).filter(s => s > lo && s < hi);
   const prices     = [...new Set([...basePrices, ...strikes])].sort((a, b) => a - b);
 
-  // Build P&L datasets
-  const pnlDatasets = recommended.map((c, i) => ({
-    label: fmtContract(c.contract) || `Contract ${i+1}`,
-    data:  prices.map(S => ({ x: S, y: coveredCallPnL(S, entryPrice, c.strike, c.mid) })),
-    borderColor:     PNL_COLORS[i % PNL_COLORS.length],
-    backgroundColor: "transparent",
-    borderWidth: 2, pointRadius: 0, tension: 0, type: "line",
-  }));
+  // Build P&L datasets — line + split green/red fills per contract
+  const pnlDatasets = [];
+  const rawPnlValues = [];
 
-  // Zero line (breakeven reference) — slightly brighter
+  recommended.forEach((c, i) => {
+    const color  = PNL_COLORS[i % PNL_COLORS.length];
+    const label  = fmtContract(c.contract) || `Contract ${i+1}`;
+    const pnlArr = prices.map(S => coveredCallPnL(S, entryPrice, c.strike, c.mid));
+    rawPnlValues.push(...pnlArr);
+
+    // Green fill — positive region (clamp negatives to 0)
+    pnlDatasets.push({
+      label: "", _isFill: true,
+      data: prices.map((S, j) => ({ x: S, y: Math.max(0, pnlArr[j]) })),
+      fill: "origin", backgroundColor: "rgba(63,185,80,0.13)",
+      borderWidth: 0, pointRadius: 0, tension: 0, type: "line",
+    });
+
+    // Red fill — negative region (clamp positives to 0)
+    pnlDatasets.push({
+      label: "", _isFill: true,
+      data: prices.map((S, j) => ({ x: S, y: Math.min(0, pnlArr[j]) })),
+      fill: "origin", backgroundColor: "rgba(248,81,73,0.13)",
+      borderWidth: 0, pointRadius: 0, tension: 0, type: "line",
+    });
+
+    // Line on top
+    pnlDatasets.push({
+      label, _isFill: false,
+      data: prices.map((S, j) => ({ x: S, y: pnlArr[j] })),
+      borderColor: color, backgroundColor: "transparent",
+      fill: false, borderWidth: 2, pointRadius: 0, tension: 0, type: "line",
+    });
+  });
+
+  // Zero line (breakeven reference)
   const zeroLine = {
-    label: "", data: [{x: lo, y: 0}, {x: hi, y: 0}],
+    label: "", _isFill: true,
+    data: [{x: lo, y: 0}, {x: hi, y: 0}],
     borderColor: "rgba(255,255,255,0.3)", borderWidth: 1,
     borderDash: [4, 4], pointRadius: 0, type: "line",
   };
 
-  // Tight Y axis bounds — pad 15% of the actual range so zero stays in view
-  const allPnlValues = pnlDatasets.flatMap(ds => ds.data.map(p => p.y));
-  const minPnl  = Math.min(...allPnlValues, 0);
-  const maxPnl  = Math.max(...allPnlValues, 0);
+  // Tight Y axis bounds
+  const minPnl  = Math.min(...rawPnlValues, 0);
+  const maxPnl  = Math.max(...rawPnlValues, 0);
   const padding = (maxPnl - minPnl) * 0.15;
   const minY    = minPnl - padding;
   const maxY    = maxPnl + padding;
@@ -697,7 +723,7 @@ function renderPnL(recommended, currentPrice, entryPrice) {
         tooltip: {
           backgroundColor: "#161b22", borderColor: "#30363d", borderWidth: 1,
           titleColor: "#e6edf3", bodyColor: "#8b949e",
-          filter: item => item.dataset.label !== "" && item.dataset.label !== "Price",
+          filter: item => !item.dataset._isFill && item.dataset.label !== "" && item.dataset.label !== "Price",
           callbacks: {
             title: items => `Underlying: $${Number(items[0].parsed.x).toFixed(2)}`,
             label: item => ` ${item.dataset.label}: $${item.parsed.y.toFixed(2)}`,
@@ -707,7 +733,7 @@ function renderPnL(recommended, currentPrice, entryPrice) {
       scales: {
         x: {
           type: "linear",
-          ticks: { color: "#8b949e", font: {size:10}, callback: v => "$"+v.toFixed(0), maxTicksLimit: 8 },
+          ticks: { color: "#8b949e", font: {size:10}, callback: v => "$"+v.toFixed(0), stepSize: 2 },
           grid:  { color: "#1d2229" },
         },
         y: {
