@@ -634,10 +634,15 @@ function renderPnL(recommended, currentPrice, entryPrice) {
   }
   section.style.display = "block";
 
-  // Price axis: entry ±35%, with each contract's exact strike inserted
-  const lo    = entryPrice * 0.65;
-  const hi    = entryPrice * 1.35;
-  const steps = 200;
+  // Focused X range: just below lowest breakeven → well past highest strike
+  const breakevens  = recommended.map(c => entryPrice - c.mid);
+  const loBreakeven = Math.min(...breakevens);
+  const hiStrike    = Math.max(...recommended.map(c => c.strike));
+  const spread      = hiStrike - loBreakeven;
+  const lo          = loBreakeven - spread * 0.5;   // some downside past breakeven
+  const hi          = hiStrike   + spread * 0.6;   // flat region clearly visible
+
+  const steps = 300;
   const step  = (hi - lo) / steps;
   const basePrices = Array.from({length: steps + 1}, (_, i) => lo + i * step);
   const strikes    = recommended.map(c => c.strike).filter(s => s > lo && s < hi);
