@@ -84,6 +84,26 @@ def days_until(date_str):
         return None
 
 
+def build_vol_history(hist_df, days=5):
+    """Return per-session HV10/HV30 for the last `days` trading sessions."""
+    closes_all = list(reversed(hist_df["Close"].tolist()))   # newest first
+    dates_all  = list(reversed([str(d.date()) for d in hist_df.index]))
+    history = []
+    for i in range(min(days, len(closes_all))):
+        closes_from_i = closes_all[i:]
+        close_i    = closes_from_i[0]
+        prev_close = closes_from_i[1] if len(closes_from_i) > 1 else close_i
+        daily_ret  = round((close_i / prev_close - 1) * 100, 2) if prev_close else 0.0
+        history.append({
+            "date":         dates_all[i],
+            "close":        round(close_i, 2),
+            "daily_return": daily_ret,
+            "hv10":         calc_hv(closes_from_i, 10),
+            "hv30":         calc_hv(closes_from_i, 30),
+        })
+    return history
+
+
 # ── Route ─────────────────────────────────────────────────────────────────────
 
 @app.route("/api/dashboard/<symbol>")
@@ -119,10 +139,11 @@ def dashboard(symbol):
     div_yield_pct = f"{div_yield * 100:.2f}%" if div_yield else "—"
 
     # ── Historical volatility ─────────────────────────────────────────────────
-    hist   = ticker.history(period="3mo")
-    closes = list(reversed(hist["Close"].tolist()))  # newest first
-    hv10   = calc_hv(closes, 10)
-    hv30   = calc_hv(closes, 30)
+    hist    = ticker.history(period="3mo")
+    closes  = list(reversed(hist["Close"].tolist()))  # newest first
+    hv10    = calc_hv(closes, 10)
+    hv30    = calc_hv(closes, 30)
+    vol_history = build_vol_history(hist)
 
     # ── Risk-free rate (10Y Treasury via ^TNX) ────────────────────────────────
     try:
@@ -274,6 +295,7 @@ def dashboard(symbol):
             "hv30":         hv30,
             "iv_hv_ratio":  iv_hv_ratio,
             "premium_rich": iv_hv_ratio > 1.1 if iv_hv_ratio else None,
+            "history":      vol_history,
         },
         "events":      events,
         "recommended": recommended,

@@ -76,6 +76,12 @@
 
   /* Vol panel */
   .vol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vol-history { margin-top: 14px; }
+  .vol-history h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 8px; }
+  .vol-history table { width: 100%; font-size: 12px; }
+  .vol-history th { font-size: 10px; padding: 4px 6px; }
+  .vol-history td { padding: 4px 6px; border-bottom: 1px solid #1d2229; }
+  .vol-history tr:last-child td { border-bottom: none; }
   .vol-item { display: flex; flex-direction: column; gap: 2px; }
   .vol-item .label { font-size: 11px; color: var(--muted); }
   .vol-item .value { font-size: 20px; font-weight: 700; }
@@ -173,6 +179,7 @@
       <div class="card" id="vol-card">
         <h2>Volatility</h2>
         <div class="vol-grid" id="vol-grid"></div>
+        <div class="vol-history" id="vol-history"></div>
       </div>
       <br>
       <!-- Events card -->
@@ -355,6 +362,33 @@ function renderDashboard(d) {
       <span class="sub">10-day historical vol</span>
     </div>
   `;
+
+  // Vol history table
+  const histEl = document.getElementById("vol-history");
+  if (v.history && v.history.length) {
+    let rows = v.history.map(h => {
+      const retCls = h.daily_return >= 0 ? "up" : "down";
+      const retArrow = h.daily_return >= 0 ? "▲" : "▼";
+      return `<tr>
+        <td>${h.date}</td>
+        <td class="num">$${h.close.toFixed(2)}</td>
+        <td class="num ${retCls}">${retArrow} ${Math.abs(h.daily_return).toFixed(2)}%</td>
+        <td class="num" style="color:var(--blue)">${h.hv10 != null ? h.hv10+"%" : "—"}</td>
+        <td class="num" style="color:var(--purple)">${h.hv30 != null ? h.hv30+"%" : "—"}</td>
+      </tr>`;
+    }).join("");
+    histEl.innerHTML = `
+      <h3>Past 5 Sessions</h3>
+      <table>
+        <thead><tr>
+          <th>Date</th><th class="num">Close</th><th class="num">Return</th>
+          <th class="num">HV10</th><th class="num">HV30</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } else {
+    histEl.innerHTML = "";
+  }
 
   // Events
   const ev = d.events;

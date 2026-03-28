@@ -50,6 +50,25 @@ def calc_hv(closes, days=30):
     return round(float(np.std(log_rets) * np.sqrt(252) * 100), 1)
 
 
+def build_vol_history(dates_sorted, ts, days=5):
+    """Return per-session HV10/HV30 for the last `days` trading sessions."""
+    all_closes = [safe_float(ts[d]["4. close"]) for d in dates_sorted]
+    history = []
+    for i in range(min(days, len(dates_sorted))):
+        closes_from_i = all_closes[i:]
+        close_i    = closes_from_i[0]
+        prev_close = closes_from_i[1] if len(closes_from_i) > 1 else close_i
+        daily_ret  = round((close_i / prev_close - 1) * 100, 2) if prev_close else 0.0
+        history.append({
+            "date":         dates_sorted[i],
+            "close":        round(close_i, 2),
+            "daily_return": daily_ret,
+            "hv10":         calc_hv(closes_from_i, 10),
+            "hv30":         calc_hv(closes_from_i, 30),
+        })
+    return history
+
+
 def safe_float(val, default=0.0):
     try:
         return float(val or default)
@@ -108,6 +127,7 @@ def dashboard(symbol):
     closes = [safe_float(ts[d]["4. close"]) for d in dates_sorted]  # newest first
     hv10   = calc_hv(closes, 10)
     hv30   = calc_hv(closes, 30)
+    vol_history = build_vol_history(dates_sorted, ts)
 
     # ── Options chain (previous trading session) ──────────────────────────────
     raw_options  = opts_raw.get("data", [])
@@ -260,6 +280,7 @@ def dashboard(symbol):
             "hv30":         hv30,
             "iv_hv_ratio":  iv_hv_ratio,
             "premium_rich": iv_hv_ratio > 1.1 if iv_hv_ratio else None,
+            "history":      vol_history,
         },
         "events":      events,
         "recommended": recommended,
