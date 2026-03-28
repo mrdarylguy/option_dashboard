@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Covered Call Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --bg:       #0d1117;
@@ -78,10 +79,7 @@
   .vol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .vol-history { margin-top: 14px; }
   .vol-history h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 8px; }
-  .vol-history table { width: 100%; font-size: 12px; }
-  .vol-history th { font-size: 10px; padding: 4px 6px; }
-  .vol-history td { padding: 4px 6px; border-bottom: 1px solid #1d2229; }
-  .vol-history tr:last-child td { border-bottom: none; }
+  .vol-history canvas { width: 100% !important; height: 160px !important; }
   .vol-item { display: flex; flex-direction: column; gap: 2px; }
   .vol-item .label { font-size: 11px; color: var(--muted); }
   .vol-item .value { font-size: 20px; font-weight: 700; }
@@ -363,29 +361,77 @@ function renderDashboard(d) {
     </div>
   `;
 
-  // Vol history table
+  // Vol history chart
   const histEl = document.getElementById("vol-history");
+  if (window._volChart) { window._volChart.destroy(); window._volChart = null; }
   if (v.history && v.history.length) {
-    let rows = v.history.map(h => {
-      const retCls = h.daily_return >= 0 ? "up" : "down";
-      const retArrow = h.daily_return >= 0 ? "▲" : "▼";
-      return `<tr>
-        <td>${h.date}</td>
-        <td class="num">$${h.close.toFixed(2)}</td>
-        <td class="num ${retCls}">${retArrow} ${Math.abs(h.daily_return).toFixed(2)}%</td>
-        <td class="num" style="color:var(--blue)">${h.hv10 != null ? h.hv10+"%" : "—"}</td>
-        <td class="num" style="color:var(--purple)">${h.hv30 != null ? h.hv30+"%" : "—"}</td>
-      </tr>`;
-    }).join("");
-    histEl.innerHTML = `
-      <h3>Past 5 Sessions</h3>
-      <table>
-        <thead><tr>
-          <th>Date</th><th class="num">Close</th><th class="num">Return</th>
-          <th class="num">HV10</th><th class="num">HV30</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+    const h = [...v.history].reverse();   // chronological order for chart
+    const labels  = h.map(r => r.date.slice(5));  // MM-DD
+    const hv10s   = h.map(r => r.hv10);
+    const hv30s   = h.map(r => r.hv30);
+    const closes  = h.map(r => r.close);
+
+    histEl.innerHTML = '<h3>Past 5 Sessions — HV10 / HV30 / Close</h3><canvas id="vol-canvas"></canvas>';
+    const ctx = document.getElementById("vol-canvas").getContext("2d");
+
+    window._volChart = new Chart(ctx, {
+      data: {
+        labels,
+        datasets: [
+          {
+            type: "line", label: "HV10 (%)", data: hv10s, yAxisID: "yVol",
+            borderColor: "#58a6ff", backgroundColor: "rgba(88,166,255,0.08)",
+            borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false,
+          },
+          {
+            type: "line", label: "HV30 (%)", data: hv30s, yAxisID: "yVol",
+            borderColor: "#bc8cff", backgroundColor: "rgba(188,140,255,0.08)",
+            borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false,
+          },
+          {
+            type: "bar", label: "Close ($)", data: closes, yAxisID: "yPrice",
+            backgroundColor: "rgba(63,185,80,0.15)", borderColor: "#3fb950",
+            borderWidth: 1, borderRadius: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: "#8b949e", font: { size: 11 }, boxWidth: 12, padding: 10 },
+          },
+          tooltip: {
+            backgroundColor: "#161b22", borderColor: "#30363d", borderWidth: 1,
+            titleColor: "#e6edf3", bodyColor: "#8b949e",
+            callbacks: {
+              label: ctx => ctx.dataset.yAxisID === "yPrice"
+                ? ` Close: $${ctx.parsed.y.toFixed(2)}`
+                : ` ${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1)+"%" : "—"}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: "#8b949e", font: { size: 10 } },
+            grid:  { color: "#1d2229" },
+          },
+          yVol: {
+            type: "linear", position: "left",
+            ticks: { color: "#8b949e", font: { size: 10 }, callback: v => v+"%", maxTicksLimit: 5 },
+            grid:  { color: "#1d2229" },
+            title: { display: true, text: "Vol (%)", color: "#8b949e", font: { size: 10 } },
+          },
+          yPrice: {
+            type: "linear", position: "right",
+            ticks: { color: "#3fb950", font: { size: 10 }, callback: v => "$"+v.toFixed(0), maxTicksLimit: 5 },
+            grid:  { drawOnChartArea: false },
+            title: { display: true, text: "Close ($)", color: "#3fb950", font: { size: 10 } },
+          },
+        },
+      },
+    });
   } else {
     histEl.innerHTML = "";
   }
