@@ -135,6 +135,14 @@
   .pnl-positive { color: var(--green); }
   .pnl-negative { color: var(--red); }
 
+  /* ── Chain toggle button ── */
+  .btn-chain-toggle {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 5px 14px; font-size: 11px; font-weight: 500;
+    cursor: pointer; transition: all .15s;
+  }
+  .btn-chain-toggle:hover { border-color: var(--blue); color: var(--blue); }
+
   /* ── DTE Tabs ── */
   .chain-section { margin-top: 12px; }
   .chain-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 6px; }
@@ -237,8 +245,22 @@
 
   </div><!-- end panels -->
 
-  <!-- Full chain — tabbed by expiry -->
-  <div class="chain-section card" id="chain-section" style="display:none">
+  <!-- P&L Chart -->
+  <div class="card pnl-card" id="pnl-section" style="display:none; margin-top:12px;">
+    <h2>Covered Call P&amp;L vs Underlying Price</h2>
+    <canvas id="pnl-canvas" style="width:100%;height:220px;"></canvas>
+    <div class="pnl-slider-row">
+      <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
+      <input type="range" id="pnl-slider" style="flex:1;" />
+    </div>
+    <div id="pnl-values"></div>
+  </div>
+
+  <!-- Full chain — tabbed by expiry, hidden by default -->
+  <div id="chain-toggle-row" style="display:none; margin-top:14px;">
+    <button class="btn-chain-toggle" id="chain-toggle-btn" onclick="toggleChain()">Show Full Option Chain ▾</button>
+  </div>
+  <div class="chain-section card" id="chain-section" style="display:none; margin-top:8px;">
     <h3>Full OTM Call Chain — 30–60 DTE</h3>
     <div class="dte-tabs" id="dte-tabs"></div>
     <div class="table-wrap">
@@ -256,17 +278,6 @@
         <tbody id="chain-body"></tbody>
       </table>
     </div>
-  </div>
-
-  <!-- P&L Chart -->
-  <div class="card pnl-card" id="pnl-section" style="display:none; margin-top:12px;">
-    <h2>Covered Call P&amp;L vs Underlying Price</h2>
-    <canvas id="pnl-canvas" style="width:100%;height:220px;"></canvas>
-    <div class="pnl-slider-row">
-      <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
-      <input type="range" id="pnl-slider" style="flex:1;" />
-    </div>
-    <div id="pnl-values"></div>
   </div>
 
   <p style="color:var(--muted);font-size:11px;margin-top:16px;" id="footer"></p>
@@ -560,10 +571,16 @@ function renderDashboard(d) {
   });
   const expiries = Object.keys(byExpiry).sort();
 
+  const chainToggleRow = document.getElementById("chain-toggle-row");
+  const chainToggleBtn = document.getElementById("chain-toggle-btn");
+
   if (expiries.length === 0) {
     chainSection.style.display = "none";
+    chainToggleRow.style.display = "none";
   } else {
-    chainSection.style.display = "block";
+    chainSection.style.display = "none";  // hidden until toggled
+    chainToggleRow.style.display = "block";
+    chainToggleBtn.textContent = "Show Full Option Chain ▾";
     let activeExpiry = expiries[0];
 
     function renderChainTab(expiry) {
@@ -778,6 +795,15 @@ function renderPnL(recommended, currentPrice, entryPrice) {
 
   slider.addEventListener("input", () => updateSlider(parseFloat(slider.value)));
   updateSlider(initialPrice);
+}
+
+// ── Full chain toggle ──────────────────────────────────────────────────────────
+function toggleChain() {
+  const section = document.getElementById("chain-section");
+  const btn     = document.getElementById("chain-toggle-btn");
+  const visible = section.style.display !== "none";
+  section.style.display = visible ? "none" : "block";
+  btn.textContent = visible ? "Show Full Option Chain ▾" : "Hide Full Option Chain ▴";
 }
 </script>
 </body>
