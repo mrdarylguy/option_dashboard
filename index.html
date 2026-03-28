@@ -634,12 +634,14 @@ function renderPnL(recommended, currentPrice, entryPrice) {
   }
   section.style.display = "block";
 
-  // Price axis: entry ±35%
+  // Price axis: entry ±35%, with each contract's exact strike inserted
   const lo    = entryPrice * 0.65;
   const hi    = entryPrice * 1.35;
   const steps = 200;
   const step  = (hi - lo) / steps;
-  const prices = Array.from({length: steps + 1}, (_, i) => lo + i * step);
+  const basePrices = Array.from({length: steps + 1}, (_, i) => lo + i * step);
+  const strikes    = recommended.map(c => c.strike).filter(s => s > lo && s < hi);
+  const prices     = [...new Set([...basePrices, ...strikes])].sort((a, b) => a - b);
 
   // Build P&L datasets
   const pnlDatasets = recommended.map((c, i) => ({
@@ -647,20 +649,23 @@ function renderPnL(recommended, currentPrice, entryPrice) {
     data:  prices.map(S => ({ x: S, y: coveredCallPnL(S, entryPrice, c.strike, c.mid) })),
     borderColor:     PNL_COLORS[i % PNL_COLORS.length],
     backgroundColor: "transparent",
-    borderWidth: 2, pointRadius: 0, tension: 0.1, type: "line",
+    borderWidth: 2, pointRadius: 0, tension: 0, type: "line",
   }));
 
-  // Zero line
+  // Zero line (breakeven reference) — slightly brighter
   const zeroLine = {
     label: "", data: [{x: lo, y: 0}, {x: hi, y: 0}],
-    borderColor: "rgba(255,255,255,0.15)", borderWidth: 1,
-    borderDash: [4,4], pointRadius: 0, type: "line",
+    borderColor: "rgba(255,255,255,0.3)", borderWidth: 1,
+    borderDash: [4, 4], pointRadius: 0, type: "line",
   };
 
-  // Vertical price marker (starts at current market price)
+  // Tight Y axis bounds — pad 15% of the actual range so zero stays in view
   const allPnlValues = pnlDatasets.flatMap(ds => ds.data.map(p => p.y));
-  const minY = Math.min(...allPnlValues) * 1.05;
-  const maxY = Math.max(...allPnlValues) * 1.05;
+  const minPnl  = Math.min(...allPnlValues, 0);
+  const maxPnl  = Math.max(...allPnlValues, 0);
+  const padding = (maxPnl - minPnl) * 0.15;
+  const minY    = minPnl - padding;
+  const maxY    = maxPnl + padding;
 
   const initialPrice = Math.min(Math.max(currentPrice, lo), hi);
   const vlineDset = {
@@ -701,6 +706,7 @@ function renderPnL(recommended, currentPrice, entryPrice) {
           grid:  { color: "#1d2229" },
         },
         y: {
+          min: minY, max: maxY,
           ticks: { color: "#8b949e", font: {size:10}, callback: v => "$"+v.toFixed(0), maxTicksLimit: 6 },
           grid:  { color: "#1d2229" },
           title: { display: true, text: "P&L per share ($)", color: "#8b949e", font: {size:10} },
