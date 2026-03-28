@@ -120,6 +120,21 @@
   /* Section headers */
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 12px 0 6px; }
 
+  /* ── P&L section ── */
+  .pnl-card canvas { display: block; width: 100% !important; height: 220px !important; }
+  .pnl-slider-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .pnl-slider-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .pnl-slider-label strong { color: var(--text); }
+  input[type=range] { accent-color: var(--accent); cursor: pointer; }
+  #pnl-values { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pnl-val-chip {
+    padding: 3px 10px; border-radius: 5px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--bg);
+  }
+  .pnl-val-chip .chip-label { color: var(--muted); font-weight: 400; margin-right: 4px; }
+  .pnl-positive { color: var(--green); }
+  .pnl-negative { color: var(--red); }
+
   /* ── DTE Tabs ── */
   .chain-section { margin-top: 12px; }
   .chain-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 6px; }
@@ -149,7 +164,8 @@
 <header>
   <h1>&#9646; Covered Call Dashboard</h1>
   <div class="search-row">
-    <input type="text" id="ticker-input" placeholder="Enter ticker (e.g. AAPL)" maxlength="10" />
+    <input type="text"   id="ticker-input" placeholder="Ticker (e.g. AAPL)" maxlength="10" />
+    <input type="number" id="entry-price"  placeholder="Entry price ($)" min="0" step="0.01" style="width:130px" />
     <button class="btn-load" id="load-btn" onclick="loadDashboard()">Load</button>
   </div>
   <div class="backend-selector">
@@ -242,6 +258,17 @@
     </div>
   </div>
 
+  <!-- P&L Chart -->
+  <div class="card pnl-card" id="pnl-section" style="display:none; margin-top:12px;">
+    <h2>Covered Call P&amp;L vs Underlying Price</h2>
+    <canvas id="pnl-canvas" style="width:100%;height:220px;"></canvas>
+    <div class="pnl-slider-row">
+      <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
+      <input type="range" id="pnl-slider" style="flex:1;" />
+    </div>
+    <div id="pnl-values"></div>
+  </div>
+
   <p style="color:var(--muted);font-size:11px;margin-top:16px;" id="footer"></p>
 
 </div><!-- end dashboard -->
@@ -260,9 +287,8 @@ function setBackend(key) {
   document.getElementById('btn-' + key).classList.add('active');
 }
 
-document.getElementById("ticker-input").addEventListener("keydown", e => {
-  if (e.key === "Enter") loadDashboard();
-});
+document.getElementById("ticker-input").addEventListener("keydown", e => { if (e.key === "Enter") loadDashboard(); });
+document.getElementById("entry-price").addEventListener("keydown",  e => { if (e.key === "Enter") loadDashboard(); });
 
 function fmt(n, digits=2, prefix="") {
   if (n == null || n === "—") return "—";
@@ -283,13 +309,28 @@ function fmtContract(raw) {
   return `${m[1]} ${type} ${m[2]} ${strikeStr}`;
 }
 
+let _lastEntryPrice = null;
+
 async function loadDashboard() {
-  const raw = document.getElementById("ticker-input").value.trim().toUpperCase();
-  if (!raw) return;
+  const raw        = document.getElementById("ticker-input").value.trim().toUpperCase();
+  const entryRaw   = document.getElementById("entry-price").value.trim();
+  const entryPrice = parseFloat(entryRaw);
+  const errEl      = document.getElementById("error-msg");
+
+  if (!raw && !entryRaw) return;
+  if (!raw) {
+    errEl.textContent = "Please enter a ticker symbol.";
+    errEl.style.display = "block"; return;
+  }
+  if (!entryRaw || isNaN(entryPrice) || entryPrice <= 0) {
+    errEl.textContent = "Please enter a valid entry price for the underlying.";
+    errEl.style.display = "block"; return;
+  }
+  errEl.style.display = "none";
+  _lastEntryPrice = entryPrice;
 
   const btn = document.getElementById("load-btn");
   const statusEl = document.getElementById("status");
-  const errEl = document.getElementById("error-msg");
   const dash = document.getElementById("dashboard");
   const placeholder = document.getElementById("placeholder");
 
@@ -571,6 +612,135 @@ function renderDashboard(d) {
   document.getElementById("footer").textContent = activeBackend === 'yfinance'
     ? ""
     : `Data via Alpha Vantage · 15-min delayed · ${d.timestamp}`;
+
+  renderPnL(d.recommended, d.price, _lastEntryPrice);
+}
+
+// ── P&L chart ─────────────────────────────────────────────────────────────────
+let _pnlChart = null;
+const PNL_COLORS = ["#58a6ff","#3fb950","#e3b341","#bc8cff","#f85149","#79c0ff"];
+
+function coveredCallPnL(S, entryPrice, strike, premium) {
+  // P&L per share at underlying price S
+  const stockPnl = S - entryPrice;
+  const callPnl  = premium - Math.max(0, S - strike);   // short call
+  return stockPnl + callPnl;
+}
+
+function renderPnL(recommended, currentPrice, entryPrice) {
+  const section = document.getElementById("pnl-section");
+  if (!recommended || recommended.length === 0 || !entryPrice) {
+    section.style.display = "none"; return;
+  }
+  section.style.display = "block";
+
+  // Price axis: entry ±35%
+  const lo    = entryPrice * 0.65;
+  const hi    = entryPrice * 1.35;
+  const steps = 200;
+  const step  = (hi - lo) / steps;
+  const prices = Array.from({length: steps + 1}, (_, i) => lo + i * step);
+
+  // Build P&L datasets
+  const pnlDatasets = recommended.map((c, i) => ({
+    label: fmtContract(c.contract) || `Contract ${i+1}`,
+    data:  prices.map(S => ({ x: S, y: coveredCallPnL(S, entryPrice, c.strike, c.mid) })),
+    borderColor:     PNL_COLORS[i % PNL_COLORS.length],
+    backgroundColor: "transparent",
+    borderWidth: 2, pointRadius: 0, tension: 0.1, type: "line",
+  }));
+
+  // Zero line
+  const zeroLine = {
+    label: "", data: [{x: lo, y: 0}, {x: hi, y: 0}],
+    borderColor: "rgba(255,255,255,0.15)", borderWidth: 1,
+    borderDash: [4,4], pointRadius: 0, type: "line",
+  };
+
+  // Vertical price marker (starts at current market price)
+  const allPnlValues = pnlDatasets.flatMap(ds => ds.data.map(p => p.y));
+  const minY = Math.min(...allPnlValues) * 1.05;
+  const maxY = Math.max(...allPnlValues) * 1.05;
+
+  const initialPrice = Math.min(Math.max(currentPrice, lo), hi);
+  const vlineDset = {
+    label: "Price",
+    data: [{x: initialPrice, y: minY}, {x: initialPrice, y: maxY}],
+    borderColor: "rgba(255,255,255,0.55)", borderWidth: 1,
+    borderDash: [3, 3], pointRadius: 0, type: "line",
+  };
+
+  if (_pnlChart) { _pnlChart.destroy(); _pnlChart = null; }
+  const ctx = document.getElementById("pnl-canvas").getContext("2d");
+  _pnlChart = new Chart(ctx, {
+    type: "line",
+    data: { datasets: [...pnlDatasets, zeroLine, vlineDset] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#8b949e", font: { size: 10 }, boxWidth: 10, padding: 8,
+            filter: item => item.text !== "" && item.text !== "Price" },
+        },
+        tooltip: {
+          backgroundColor: "#161b22", borderColor: "#30363d", borderWidth: 1,
+          titleColor: "#e6edf3", bodyColor: "#8b949e",
+          filter: item => item.dataset.label !== "" && item.dataset.label !== "Price",
+          callbacks: {
+            title: items => `Underlying: $${Number(items[0].parsed.x).toFixed(2)}`,
+            label: item => ` ${item.dataset.label}: $${item.parsed.y.toFixed(2)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          ticks: { color: "#8b949e", font: {size:10}, callback: v => "$"+v.toFixed(0), maxTicksLimit: 8 },
+          grid:  { color: "#1d2229" },
+        },
+        y: {
+          ticks: { color: "#8b949e", font: {size:10}, callback: v => "$"+v.toFixed(0), maxTicksLimit: 6 },
+          grid:  { color: "#1d2229" },
+          title: { display: true, text: "P&L per share ($)", color: "#8b949e", font: {size:10} },
+        },
+      },
+    },
+  });
+
+  // ── Slider ────────────────────────────────────────────────────────────────
+  const slider   = document.getElementById("pnl-slider");
+  const priceLbl = document.getElementById("slider-price-lbl");
+  const valsEl   = document.getElementById("pnl-values");
+
+  slider.min   = lo.toFixed(2);
+  slider.max   = hi.toFixed(2);
+  slider.step  = (step).toFixed(2);
+  slider.value = initialPrice.toFixed(2);
+
+  function updateSlider(price) {
+    priceLbl.textContent = "$" + price.toFixed(2);
+    // Move vertical line
+    const vline = _pnlChart.data.datasets[_pnlChart.data.datasets.length - 1];
+    vline.data = [{x: price, y: minY}, {x: price, y: maxY}];
+    _pnlChart.update("none");
+    // P&L chips
+    valsEl.innerHTML = recommended.map((c, i) => {
+      const pnl    = coveredCallPnL(price, entryPrice, c.strike, c.mid);
+      const pnl100 = pnl * 100;
+      const cls    = pnl >= 0 ? "pnl-positive" : "pnl-negative";
+      const sign   = pnl >= 0 ? "+" : "";
+      const label  = fmtContract(c.contract) || `Contract ${i+1}`;
+      return `<div class="pnl-val-chip">
+        <span class="chip-label">${label}</span>
+        <span class="${cls}">${sign}$${pnl.toFixed(2)}/sh &nbsp; ${sign}$${pnl100.toFixed(0)}/contract</span>
+      </div>`;
+    }).join("");
+  }
+
+  slider.addEventListener("input", () => updateSlider(parseFloat(slider.value)));
+  updateSlider(initialPrice);
 }
 </script>
 </body>
