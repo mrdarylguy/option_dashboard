@@ -266,6 +266,15 @@ function fmtK(n) {
   if (!n) return "—";
   return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : n;
 }
+function fmtContract(raw) {
+  // OCC format: TICKER(1-6) + YYMMDD(6) + C/P(1) + strike*1000 zero-padded to 8 digits
+  const m = raw.match(/^([A-Z]+)(\d{6})([CP])(\d{8})$/);
+  if (!m) return raw;
+  const type   = m[3] === 'C' ? 'Call' : 'Put';
+  const strike = parseInt(m[4], 10) / 1000;
+  const strikeStr = Number.isInteger(strike) ? strike.toFixed(0) : strike.toString();
+  return `${m[1]} ${type} ${m[2]} ${strikeStr}`;
+}
 
 async function loadDashboard() {
   const raw = document.getElementById("ticker-input").value.trim().toUpperCase();
@@ -497,7 +506,7 @@ function renderDashboard(d) {
     const yieldCls = c.ann_yield >= 15 ? "highlight-yield" : "";
     chainBody.innerHTML += `
       <tr>
-        <td style="color:var(--muted);font-size:11px">${c.contract}</td>
+        <td style="color:var(--muted)">${fmtContract(c.contract)}</td>
         <td>${c.expiry}</td>
         <td class="num">${c.dte}</td>
         <td class="num">$${c.strike.toFixed(2)}</td>
