@@ -2,7 +2,7 @@
 
 As an options trader who writes covered calls, i used Claude to create an option trading dashboad that recommends me OTM call options. 
 
-<img width="1412" height="574" alt="Screenshot 2026-03-27 at 17 15 30" src="https://github.com/user-attachments/assets/221b40cd-37ab-40f3-8ee0-4a78bbc550fe" />
+<img alt="Covered Call Dashboard" src="headline_image/image.png" />
 
 
 ## Critera
