@@ -120,9 +120,17 @@
   /* Section headers */
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 12px 0 6px; }
 
-  /* Expander */
-  details summary { cursor: pointer; color: var(--blue); font-size: 11px; margin: 10px 0 6px; user-select: none; }
-  details summary:hover { color: #79c0ff; }
+  /* ── DTE Tabs ── */
+  .chain-section { margin-top: 12px; }
+  .chain-section h3 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 6px; }
+  .dte-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .dte-tab {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 3px 10px; font-size: 11px; font-weight: 500;
+    cursor: pointer; white-space: nowrap; transition: all .15s;
+  }
+  .dte-tab:hover { border-color: var(--blue); color: var(--blue); }
+  .dte-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
   /* Spinner */
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
@@ -213,27 +221,26 @@
 
   </div><!-- end panels -->
 
-  <!-- Full chain -->
-  <details>
-    <summary>&#9660; Full OTM Call Chain (30–60 DTE)</summary>
-    <div class="card">
-      <div class="table-wrap">
-        <table id="chain-table">
-          <thead>
-            <tr>
-              <th>Contract</th><th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
-              <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
-              <th class="num">Mid</th><th class="num">Delta</th><th class="num">Gamma</th>
-              <th class="num">Theta</th><th class="num">Vega</th>
-              <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
-              <th class="num">Ann. Yield</th>
-            </tr>
-          </thead>
-          <tbody id="chain-body"></tbody>
-        </table>
-      </div>
+  <!-- Full chain — tabbed by expiry -->
+  <div class="chain-section card" id="chain-section" style="display:none">
+    <h3>Full OTM Call Chain — 30–60 DTE</h3>
+    <div class="dte-tabs" id="dte-tabs"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Contract</th><th class="num">Strike</th>
+            <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
+            <th class="num">Mid</th><th class="num">Delta</th><th class="num">Gamma</th>
+            <th class="num">Theta</th><th class="num">Vega</th>
+            <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
+            <th class="num">Ann. Yield</th>
+          </tr>
+        </thead>
+        <tbody id="chain-body"></tbody>
+      </table>
     </div>
-  </details>
+  </div>
 
   <p style="color:var(--muted);font-size:11px;margin-top:16px;" id="footer"></p>
 
@@ -499,31 +506,67 @@ function renderDashboard(d) {
     });
   }
 
-  // Full chain
-  const chainBody = document.getElementById("chain-body");
-  chainBody.innerHTML = "";
+  // Full chain — tabbed by expiry
+  const chainSection = document.getElementById("chain-section");
+  const dteTabs      = document.getElementById("dte-tabs");
+  const chainBody    = document.getElementById("chain-body");
+
+  // Group contracts by expiry
+  const byExpiry = {};
   d.all_calls.forEach(c => {
-    const yieldCls = c.ann_yield >= 15 ? "highlight-yield" : "";
-    chainBody.innerHTML += `
-      <tr>
-        <td style="color:var(--muted)">${fmtContract(c.contract)}</td>
-        <td>${c.expiry}</td>
-        <td class="num">${c.dte}</td>
-        <td class="num">$${c.strike.toFixed(2)}</td>
-        <td class="num">+${c.pct_otm.toFixed(2)}%</td>
-        <td class="num">$${c.bid.toFixed(2)}</td>
-        <td class="num">$${c.ask.toFixed(2)}</td>
-        <td class="num">$${c.mid.toFixed(2)}</td>
-        <td class="num">${c.delta.toFixed(3)}</td>
-        <td class="num">${c.gamma.toFixed(4)}</td>
-        <td class="num">${c.theta.toFixed(3)}</td>
-        <td class="num">${c.vega.toFixed(3)}</td>
-        <td class="num">${c.iv.toFixed(1)}%</td>
-        <td class="num">${fmtK(c.oi)}</td>
-        <td class="num">${fmtK(c.volume)}</td>
-        <td class="num ${yieldCls}">${c.ann_yield.toFixed(2)}%</td>
-      </tr>`;
+    if (!byExpiry[c.expiry]) byExpiry[c.expiry] = [];
+    byExpiry[c.expiry].push(c);
   });
+  const expiries = Object.keys(byExpiry).sort();
+
+  if (expiries.length === 0) {
+    chainSection.style.display = "none";
+  } else {
+    chainSection.style.display = "block";
+    let activeExpiry = expiries[0];
+
+    function renderChainTab(expiry) {
+      activeExpiry = expiry;
+      // Update tab active state
+      dteTabs.querySelectorAll(".dte-tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.expiry === expiry);
+      });
+      // Render rows
+      chainBody.innerHTML = byExpiry[expiry].map(c => {
+        const yieldCls = c.ann_yield >= 15 ? "highlight-yield" : "";
+        return `<tr>
+          <td style="color:var(--muted)">${fmtContract(c.contract)}</td>
+          <td class="num">$${c.strike.toFixed(2)}</td>
+          <td class="num">+${c.pct_otm.toFixed(2)}%</td>
+          <td class="num">$${c.bid.toFixed(2)}</td>
+          <td class="num">$${c.ask.toFixed(2)}</td>
+          <td class="num">$${c.mid.toFixed(2)}</td>
+          <td class="num">${c.delta.toFixed(3)}</td>
+          <td class="num">${c.gamma.toFixed(4)}</td>
+          <td class="num">${c.theta.toFixed(3)}</td>
+          <td class="num">${c.vega.toFixed(3)}</td>
+          <td class="num">${c.iv.toFixed(1)}%</td>
+          <td class="num">${fmtK(c.oi)}</td>
+          <td class="num">${fmtK(c.volume)}</td>
+          <td class="num ${yieldCls}">${c.ann_yield.toFixed(2)}%</td>
+        </tr>`;
+      }).join("");
+    }
+
+    // Build tabs
+    dteTabs.innerHTML = expiries.map(exp => {
+      const dte = byExpiry[exp][0].dte;
+      return `<button class="dte-tab" data-expiry="${exp}" onclick="void(0)">${exp} · ${dte}d</button>`;
+    }).join("");
+
+    // Attach click handlers
+    dteTabs.querySelectorAll(".dte-tab").forEach(btn => {
+      btn.addEventListener("click", () => renderChainTab(btn.dataset.expiry));
+    });
+
+    // Show first tab by default
+    renderChainTab(activeExpiry);
+  }
 
   document.getElementById("footer").textContent = activeBackend === 'yfinance'
     ? ""
