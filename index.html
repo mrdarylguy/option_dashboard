@@ -69,6 +69,8 @@
   /* ── Panels ── */
   .panels { display: grid; grid-template-columns: 280px 1fr; gap: 16px; margin-bottom: 20px; }
   @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+  .right-panels { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .right-panels { grid-template-columns: 1fr; } }
 
   .card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
@@ -177,7 +179,6 @@
       <div class="card" id="vol-card">
         <h2>Volatility</h2>
         <div class="vol-grid" id="vol-grid"></div>
-        <div class="vol-history" id="vol-history"></div>
       </div>
       <br>
       <!-- Events card -->
@@ -187,24 +188,34 @@
       </div>
     </div>
 
-    <!-- Recommended contracts card -->
-    <div class="card">
-      <h2>Recommended Contracts — OTM Calls &nbsp;|&nbsp; 30–60 DTE &nbsp;|&nbsp; &Delta; &asymp; 0.25</h2>
-      <div class="table-wrap">
-        <table id="rec-table">
-          <thead>
-            <tr>
-              <th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
-              <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
-              <th class="num">Mid</th><th class="num">Delta</th><th class="num">Theta/day</th>
-              <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
-              <th class="num">Ann. Yield</th>
-            </tr>
-          </thead>
-          <tbody id="rec-body"></tbody>
-        </table>
+    <!-- Right: recommended contracts + vol history chart -->
+    <div class="right-panels">
+
+      <!-- Recommended contracts card -->
+      <div class="card">
+        <h2>Recommended Contracts — OTM Calls &nbsp;|&nbsp; 30–60 DTE &nbsp;|&nbsp; &Delta; &asymp; 0.25</h2>
+        <div class="table-wrap">
+          <table id="rec-table">
+            <thead>
+              <tr>
+                <th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
+                <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
+                <th class="num">Mid</th><th class="num">Delta</th><th class="num">Theta/day</th>
+                <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
+                <th class="num">Ann. Yield</th>
+              </tr>
+            </thead>
+            <tbody id="rec-body"></tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      <!-- Vol history chart card -->
+      <div class="card">
+        <div class="vol-history" id="vol-history"></div>
+      </div>
+
+    </div><!-- end right-panels -->
 
   </div><!-- end panels -->
 
