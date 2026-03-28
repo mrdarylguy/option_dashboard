@@ -121,7 +121,7 @@
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 12px 0 6px; }
 
   /* ── P&L section ── */
-  .pnl-card canvas { display: block; width: 100% !important; height: 220px !important; }
+  .pnl-card canvas { display: block; width: 100% !important; height: 160px !important; }
   .pnl-slider-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
   .pnl-slider-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .pnl-slider-label strong { color: var(--text); }
@@ -214,47 +214,51 @@
       </div>
     </div>
 
-    <!-- Right: recommended contracts + vol history chart -->
-    <div class="right-panels">
+    <!-- Right: recommended contracts + vol history chart + P&L -->
+    <div style="min-width:0; display:flex; flex-direction:column; gap:10px;">
 
-      <!-- Recommended contracts card -->
-      <div class="card">
-        <h2>Recommended Contracts — OTM Calls &nbsp;|&nbsp; 30–60 DTE &nbsp;|&nbsp; &Delta; &asymp; 0.25</h2>
-        <div class="table-wrap">
-          <table id="rec-table">
-            <thead>
-              <tr>
-                <th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
-                <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
-                <th class="num">Mid</th><th class="num">Delta</th><th class="num">Theta/day</th>
-                <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
-                <th class="num">Ann. Yield</th>
-              </tr>
-            </thead>
-            <tbody id="rec-body"></tbody>
-          </table>
+      <div class="right-panels">
+
+        <!-- Recommended contracts card -->
+        <div class="card">
+          <h2>Recommended Contracts — OTM Calls &nbsp;|&nbsp; 30–60 DTE &nbsp;|&nbsp; &Delta; &asymp; 0.25</h2>
+          <div class="table-wrap">
+            <table id="rec-table">
+              <thead>
+                <tr>
+                  <th>Expiry</th><th class="num">DTE</th><th class="num">Strike</th>
+                  <th class="num">% OTM</th><th class="num">Bid</th><th class="num">Ask</th>
+                  <th class="num">Mid</th><th class="num">Delta</th><th class="num">Theta/day</th>
+                  <th class="num">IV</th><th class="num">OI</th><th class="num">Vol</th>
+                  <th class="num">Ann. Yield</th>
+                </tr>
+              </thead>
+              <tbody id="rec-body"></tbody>
+            </table>
+          </div>
         </div>
+
+        <!-- Vol history chart card -->
+        <div class="card">
+          <div class="vol-history" id="vol-history"></div>
+        </div>
+
+      </div><!-- end right-panels -->
+
+      <!-- P&L Chart — directly below recommended contracts -->
+      <div class="card pnl-card" id="pnl-section" style="display:none;">
+        <h2>Covered Call P&amp;L vs Underlying Price</h2>
+        <canvas id="pnl-canvas" style="width:100%;height:160px;"></canvas>
+        <div class="pnl-slider-row">
+          <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
+          <input type="range" id="pnl-slider" style="flex:1;" />
+        </div>
+        <div id="pnl-values"></div>
       </div>
 
-      <!-- Vol history chart card -->
-      <div class="card">
-        <div class="vol-history" id="vol-history"></div>
-      </div>
-
-    </div><!-- end right-panels -->
+    </div><!-- end right column -->
 
   </div><!-- end panels -->
-
-  <!-- P&L Chart -->
-  <div class="card pnl-card" id="pnl-section" style="display:none; margin-top:12px;">
-    <h2>Covered Call P&amp;L vs Underlying Price</h2>
-    <canvas id="pnl-canvas" style="width:100%;height:220px;"></canvas>
-    <div class="pnl-slider-row">
-      <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
-      <input type="range" id="pnl-slider" style="flex:1;" />
-    </div>
-    <div id="pnl-values"></div>
-  </div>
 
   <!-- Full chain — tabbed by expiry, hidden by default -->
   <div id="chain-toggle-row" style="display:none; margin-top:14px;">
