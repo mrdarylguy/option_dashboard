@@ -214,10 +214,11 @@
       </div>
     </div>
 
-    <!-- Right: recommended contracts + vol history chart + P&L -->
-    <div style="min-width:0; display:flex; flex-direction:column; gap:10px;">
+    <!-- Right: [recommended contracts + P&L] + vol history chart -->
+    <div class="right-panels">
 
-      <div class="right-panels">
+      <!-- Left of right: recommended contracts stacked above P&L -->
+      <div style="min-width:0; display:flex; flex-direction:column; gap:10px;">
 
         <!-- Recommended contracts card -->
         <div class="card">
@@ -238,25 +239,25 @@
           </div>
         </div>
 
-        <!-- Vol history chart card -->
-        <div class="card">
-          <div class="vol-history" id="vol-history"></div>
+        <!-- P&L Chart — same width as recommended contracts, directly below -->
+        <div class="card pnl-card" id="pnl-section" style="display:none;">
+          <h2>Covered Call P&amp;L vs Underlying Price</h2>
+          <canvas id="pnl-canvas" style="width:100%;height:160px;"></canvas>
+          <div class="pnl-slider-row">
+            <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
+            <input type="range" id="pnl-slider" style="flex:1;" />
+          </div>
+          <div id="pnl-values"></div>
         </div>
 
-      </div><!-- end right-panels -->
+      </div><!-- end left-of-right -->
 
-      <!-- P&L Chart — directly below recommended contracts -->
-      <div class="card pnl-card" id="pnl-section" style="display:none;">
-        <h2>Covered Call P&amp;L vs Underlying Price</h2>
-        <canvas id="pnl-canvas" style="width:100%;height:160px;"></canvas>
-        <div class="pnl-slider-row">
-          <span class="pnl-slider-label">Underlying: <strong id="slider-price-lbl">—</strong></span>
-          <input type="range" id="pnl-slider" style="flex:1;" />
-        </div>
-        <div id="pnl-values"></div>
+      <!-- Vol history chart card -->
+      <div class="card">
+        <div class="vol-history" id="vol-history"></div>
       </div>
 
-    </div><!-- end right column -->
+    </div><!-- end right-panels -->
 
   </div><!-- end panels -->
 
